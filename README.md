@@ -1,9 +1,9 @@
-# Exit Sentinel releases
+# Exit Sentinel private releases
 
-Signed macOS Apple Silicon releases for Exit Sentinel. Download the DMG from [Releases](https://github.com/melotusme/exit-sentinel-releases/releases/latest).
+This repository and the source repository are private. Signed Apple Silicon macOS builds and their updater manifest are available only to authorized users.
 
-`latest.json` is the public Tauri updater feed. No GitHub credentials are embedded in the app. Source and personal application data are not published here.
+The app uses the local GitHub CLI login in its native backend to read private release assets. No credential is embedded in the app or sent to its frontend. Run `gh auth login` with an account that has repository read permission before checking for updates.
 
-The app currently uses ad-hoc Apple signing (no Developer ID notarization). Update artifacts are independently signed and verified by the app.
+Actions → Publish signed release → Run workflow builds a source ref. The hourly version check runs on Linux; macOS builds run only for a new version. Source checkout uses a read-only deploy key; signing keys are Actions secrets.
 
-Maintainer: Actions → Publish signed release → Run workflow builds the private source ref. An hourly scheduled check publishes when the source main branch has a new app version. The source deploy key is read-only; signing keys are GitHub Actions secrets.
+The app is ad-hoc signed and has not been notarized by Apple.
