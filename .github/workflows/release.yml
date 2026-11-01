@@ -1,0 +1,63 @@
+name: Publish signed release
+on:
+  workflow_dispatch:
+    inputs:
+      source_ref:
+        description: Private source branch or tag
+        default: main
+        required: true
+  schedule:
+    - cron: '17 * * * *'
+permissions:
+  contents: write
+concurrency:
+  group: stable-release
+  cancel-in-progress: false
+jobs:
+  release:
+    runs-on: macos-14
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          repository: melotusme/exit-sentinel
+          ref: ${{ inputs.source_ref || 'main' }}
+          ssh-key: ${{ secrets.SOURCE_DEPLOY_KEY }}
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - name: Check for a new version
+        id: version
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          VERSION=$(node -p "require('./src-tauri/tauri.conf.json').version")
+          DRAFT=$(gh release view "v$VERSION" --repo melotusme/exit-sentinel-releases --json isDraft --jq .isDraft 2>/dev/null || true)
+          if [ "$DRAFT" = false ]; then
+            echo 'needed=false' >> "$GITHUB_OUTPUT"
+          else
+            echo 'needed=true' >> "$GITHUB_OUTPUT"
+          fi
+      - uses: dtolnay/rust-toolchain@stable
+        if: steps.version.outputs.needed == 'true'
+        with:
+          targets: aarch64-apple-darwin
+      - name: Build and test
+        if: steps.version.outputs.needed == 'true'
+        env:
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ''
+        run: |
+          npm ci
+          npm run build
+          npm test
+          python3 scripts/test_shadowrocket_snapshot.py
+          npm run tauri -- build --target aarch64-apple-darwin --bundles app,dmg
+      - name: Publish signed assets
+        if: steps.version.outputs.needed == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SENTINEL_TARGET_TRIPLE: aarch64-apple-darwin
+          SENTINEL_ARCH: aarch64
+        run: node scripts/publish.mjs release-notes.md
